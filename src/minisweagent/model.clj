@@ -5,7 +5,7 @@
 
   - `:request`      model config, messages -> {:url :headers :body}
   - `:response`     parsed response body   -> normalized response
-  - `:observations` action results         -> messages
+  - `:observations` action results         -> [{:message :outputs}]
   - `:auth-headers` api key                -> headers
 
   A normalized response looks the same for every API:
@@ -38,8 +38,9 @@
                        :known (keys adapters)}))))
 
 (defn observations
-  "The messages that answer the actions of the last assistant message.
-  `results` are maps of `:action`, `:output` and the observation `:text`."
+  "The messages that answer the actions of the last assistant message, each
+  with the outputs it carries. `results` are maps of `:action`, `:output` and
+  the observation `:text`."
   [model-config results]
   ((:observations (adapter model-config)) results))
 

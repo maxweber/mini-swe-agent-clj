@@ -12,8 +12,8 @@
 (deftest request-test
   (let [{:keys [url headers body]}
         (anthropic/request model-config
-                           [{:role "system" :content "Be helpful." :extra {:timestamp 1}}
-                            {:role "user" :content "Fix it." :extra {:timestamp 1}}])]
+                           [{:role "system" :content "Be helpful."}
+                            {:role "user" :content "Fix it."}])]
     (is (= "https://api.anthropic.com/v1/messages" url))
     (is (= {"anthropic-version" "2023-06-01"
             "anthropic-beta" "server-side-fallback-2026-07-01"}
@@ -47,12 +47,12 @@
                                 :model "claude-opus-5"})))))
 
 (deftest observations-test
-  (is (= [{:role "user"
-           :content [{:type "tool_result" :tool_use_id "toolu_1" :content "{1}"}
-                     {:type "tool_result" :tool_use_id "toolu_2" :content "{2}"}]
-           :extra {:outputs [:o1 :o2]}}]
+  (is (= [{:message {:role "user"
+                     :content [{:type "tool_result" :tool_use_id "toolu_1" :content "{1}"}
+                               {:type "tool_result" :tool_use_id "toolu_2" :content "{2}"}]}
+           :outputs [:o1 :o2]}]
          (anthropic/observations [{:action {:command "a" :tool-call-id "toolu_1"} :output :o1 :text "{1}"}
                                   {:action {:command "b" :tool-call-id "toolu_2"} :output :o2 :text "{2}"}])))
-  (is (= [{:role "user" :content "{1}" :extra {:outputs [:o1]}}]
+  (is (= [{:message {:role "user" :content "{1}"} :outputs [:o1]}]
          (anthropic/observations [{:action {:command "a"} :output :o1 :text "{1}"}])))
   (is (= [] (anthropic/observations []))))

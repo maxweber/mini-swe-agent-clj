@@ -23,7 +23,7 @@
      :headers (merge {"anthropic-version" "2023-06-01"} headers)
      :body (cond-> (assoc params
                           :model id
-                          :messages (mapv #(dissoc % :extra) conversation))
+                          :messages (vec conversation))
              (seq system) (assoc :system (str/join "\n\n" (map :content system)))
              (= :toolcall (keyword action-format)) (assoc :tools [bash-tool]))}))
 
@@ -52,15 +52,15 @@
   one user message each."
   [results]
   (if (:tool-call-id (:action (first results)))
-    [{:role "user"
-      :content (mapv (fn [{:keys [action text]}]
-                       {:type "tool_result"
-                        :tool_use_id (:tool-call-id action)
-                        :content text})
-                     results)
-      :extra {:outputs (mapv :output results)}}]
+    [{:message {:role "user"
+                :content (mapv (fn [{:keys [action text]}]
+                                 {:type "tool_result"
+                                  :tool_use_id (:tool-call-id action)
+                                  :content text})
+                               results)}
+      :outputs (mapv :output results)}]
     (mapv (fn [{:keys [output text]}]
-            {:role "user"
-             :content text
-             :extra {:outputs [output]}})
+            {:message {:role "user"
+                       :content text}
+             :outputs [output]})
           results)))

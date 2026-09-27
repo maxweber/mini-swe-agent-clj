@@ -1,7 +1,8 @@
 (ns minisweagent.terminal
-  "The user in a terminal: a watch that prints the new messages of the agent
-  and the `:user/ask` effect."
-  (:require [clojure.string :as str]))
+  "The user in a terminal: a watch that prints the new log entries and the
+  `:user/ask` effect."
+  (:require [clojure.string :as str]
+            [minisweagent.log :as log]))
 
 (defn- style
   [ansi-code text]
@@ -27,41 +28,64 @@
        (bold-yellow "returncode: ") returncode "\n"
        output))
 
-(defn- message-text
-  [{:keys [role content extra]}]
-  (cond
-    (:outputs extra)
-    (str/join "\n" (map output-text (:outputs extra)))
+(defn- actions-text
+  [actions]
+  (str/join "\n\n" (map #(str "```bash\n" (:command %) "\n```") actions)))
 
-    (= "assistant" role)
-    (str/join "\n\n" (remove str/blank?
-                             (cons (content-text content)
-                                   (map #(str "```bash\n" (:command %) "\n```")
-                                        (:actions extra)))))
+(defn- entry-text
+  "The heading and body of a log entry, or nil for entries not worth showing."
+  [log {:keys [type message actions outputs] :as entry}]
+  (case type
+    :run/started
+    nil
 
-    :else
-    (content-text content)))
+    :prompt/rendered
+    [(bold-green (str (str/capitalize (:role message)) ":"))
+     (content-text (:content message))]
 
-(defn- label
-  [agent {:keys [role extra]}]
-  (cond
-    (= "assistant" role)
-    (str (dim (apply str (repeat 72 "─"))) "\n"
-         (bold-red (format "mini-swe-agent (step %d, $%.2f):" (:n-calls agent) (:cost agent))))
+    :model/responded
+    [(str (dim (apply str (repeat 72 "─"))) "\n"
+          (bold-red (format "mini-swe-agent (step %d, $%.2f):" (log/n-calls log) (log/cost log))))
+     (str/join "\n\n" (remove str/blank? [(content-text (:content message))
+                                          (actions-text actions)]))]
 
-    (:outputs extra)
-    (bold-green "Observation:")
+    :model/format-error
+    [(bold-yellow (format "Format error (step %d):" (log/n-calls log)))
+     (:content message)]
 
-    :else
-    (bold-green (str (str/capitalize role) ":"))))
+    :actions/observed
+    [(bold-green "Observation:")
+     (str/join "\n" (map output-text outputs))]
 
-(defn print-new-messages
-  "A watch function that prints the messages added to the agent value."
-  [_key _ref old-agent new-agent]
-  (doseq [message (drop (count (:messages old-agent)) (:messages new-agent))]
+    :user/commanded
+    [(bold-green "User command:")
+     (actions-text actions)]
+
+    :user/interrupted
+    [(bold-green "User:")
+     (:content message)]
+
+    :mode/switched
+    [(bold-yellow (str "Switched to " (name (:mode entry)) " mode."))]
+
+    :limits/raised
+    [(bold-yellow (format "Limits raised to %s steps, $%s."
+                          (:step-limit entry) (:cost-limit entry)))]
+
+    :run/exited
+    [(bold-green (str "Exit: " (:status entry)))
+     (or (:exception entry) (:submission entry))]))
+
+(defn print-new-entries
+  "A watch function that prints the entries appended to the log."
+  [_key _ref old-log new-log]
+  (doseq [entry (drop (count old-log) new-log)
+          :let [[heading body] (entry-text new-log entry)]
+          :when heading]
     (println)
-    (println (label new-agent message))
-    (println (message-text message))))
+    (println heading)
+    (when-not (str/blank? body)
+      (println body))))
 
 (defn- read-line!
   []

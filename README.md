@@ -38,9 +38,15 @@ The Python version is a handful of classes with mutable fields
 interactive agent and exceptions for control flow (`Submitted`,
 `LimitsExceeded`, `FormatError`, ...). Here:
 
-- **One value.** The agent is a map of task, config, messages and counters.
-  It is also the trajectory: the file written after every step is this value.
-- **One mutable place.** `minisweagent.agent/run!` keeps the value in an atom
+- **One value, a log.** The agent is a vector of entries: `:run/started`
+  (task and config), `:model/responded`, `:actions/observed`,
+  `:mode/switched`, `:limits/raised`, `:run/exited`, ... Entries that carry a
+  message keep it exactly as exchanged with the API, so the conversation only
+  grows (prompt caching, thinking blocks). Cost, call count, mode, limits,
+  the conversation and what happens next are projections of the log
+  (`minisweagent.log`). The log is also the trajectory file, and every prefix
+  of it is a valid state to continue from.
+- **One mutable place.** `minisweagent.agent/run!` keeps the log in an atom
   and replaces it after every step. Printing and saving the trajectory are
   watches on that atom, not overrides.
 - **Effects are passed in.** The core calls the world only through functions
@@ -48,8 +54,8 @@ interactive agent and exceptions for control flow (`Submitted`,
   `:model/query`, `:env/execute`, `:user/ask`, `:clock/now`. Tests pass plain
   functions instead of mocks or HTTP servers.
 - **Control flow is data.** What happens next (`query`, `execute`, `submit`,
-  `done`) is derived from the messages by `phase`. Exiting means appending an
-  exit message.
+  `done`) is derived from the log by `log/phase`. Exiting means appending a
+  `:run/exited` entry.
 - **API adapters are pure.** Each API is a map of functions from request data
   to request data and from response to a normalized response. The only HTTP
   code is `minisweagent.model.http`.
@@ -58,7 +64,8 @@ interactive agent and exceptions for control flow (`Submitted`,
 
 | Namespace                        | Role                                                    |
 |----------------------------------|---------------------------------------------------------|
-| `minisweagent.agent`             | the agent value, `step`, `run!`                          |
+| `minisweagent.agent`             | `init`, `step`, `run!`: appends entries to the log      |
+| `minisweagent.log`               | the entry types and all projections of the log         |
 | `minisweagent.actions`           | commands out of a model response (tool calls or text)  |
 | `minisweagent.observation`       | command output as the model sees it, submission check  |
 | `minisweagent.model`             | adapter dispatch, cost                                  |
@@ -78,6 +85,7 @@ interactive agent and exceptions for control flow (`Submitted`,
 (require '[minisweagent.agent :as agent]
          '[minisweagent.config :as config]
          '[minisweagent.environment.local :as local]
+         '[minisweagent.log :as log]
          '[minisweagent.model.http :as http])
 
 (def !agent
@@ -91,12 +99,14 @@ interactive agent and exceptions for control flow (`Submitted`,
                      :clock/now #(System/currentTimeMillis)}
                     !agent))
 
-(agent/phase @!agent)          ; watch it work
-(map :role (:messages @!agent))
+(log/phase @!agent)            ; watch it work
+(log/cost @!agent)
+(map :type @!agent)
 ```
 
-`(agent/step effects @!agent)` computes a single step, which makes it easy to
-try a different config or model on the same conversation.
+`(agent/step effects @!agent)` computes a single step. To fork a run, take a
+prefix of a saved log and continue it:
+`(agent/run! effects (atom (subvec (minisweagent.trajectory/load-edn path) 0 n)))`.
 
 ## Config
 
@@ -119,8 +129,8 @@ Templates only fill `{{name}}` placeholders (`task`, `system`, `release`,
 - Observations are always the JSON of `mini.yaml`.
 - A command's output goes to a temp file instead of a pipe, so a command
   that starts a background process returns when bash exits.
-- The trajectory is the agent value as EDN (or JSON if the path ends with
-  `.json`), not the Python inspector format.
+- The trajectory is the log as EDN (or JSON if the path ends with `.json`),
+  not the Python inspector format.
 - Not ported: Docker and other environments, SWE-bench batch runs, the
   inspector, multimodal input, Ctrl-C interruption, the global cost limit and
   the `.env` config file.

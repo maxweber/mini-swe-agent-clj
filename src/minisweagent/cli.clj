@@ -6,6 +6,7 @@
             [minisweagent.agent :as agent]
             [minisweagent.config :as config]
             [minisweagent.environment.local :as local]
+            [minisweagent.log :as log]
             [minisweagent.model.http :as http]
             [minisweagent.terminal :as terminal]
             [minisweagent.trajectory :as trajectory]))
@@ -46,8 +47,7 @@
   (terminal/read-multiline!))
 
 (defn run
-  "Runs the agent for the command line `opts` and returns the final agent
-  value."
+  "Runs the agent for the command line `opts` and returns the final log."
   [opts]
   (let [config (config/build (conj (if (seq (:config opts))
                                      (:config opts)
@@ -58,7 +58,7 @@
                                   :vars (config/platform-vars)
                                   :now (System/currentTimeMillis)}))]
     (println "Model:" (get-in config [:model :name]) "- trajectory:" (:output opts))
-    (add-watch !agent ::print terminal/print-new-messages)
+    (add-watch !agent ::print terminal/print-new-entries)
     (add-watch !agent ::save (trajectory/watch-fn (:output opts)))
     (agent/run! {:model/query (http/query-fn {})
                  :env/execute local/execute
@@ -79,13 +79,12 @@
           (System/exit 2))
 
       :else
-      (let [final-agent (try
-                          (run options)
-                          (catch Exception e
-                            (binding [*out* *err*]
-                              (println "Error:" (ex-message e)))
-                            (System/exit 1)))]
-        (System/exit (if (= "Submitted" (get-in (peek (:messages final-agent))
-                                                [:extra :exit-status]))
+      (let [final-log (try
+                        (run options)
+                        (catch Exception e
+                          (binding [*out* *err*]
+                            (println "Error:" (ex-message e)))
+                          (System/exit 1)))]
+        (System/exit (if (= "Submitted" (:status (log/exit final-log)))
                        0
                        1))))))

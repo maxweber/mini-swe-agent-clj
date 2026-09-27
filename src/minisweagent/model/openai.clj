@@ -22,7 +22,7 @@
    :headers (or headers {})
    :body (cond-> (assoc params
                         :model id
-                        :messages (mapv #(dissoc % :extra) messages))
+                        :messages (vec messages))
            (= :toolcall (keyword action-format)) (assoc :tools [bash-tool]))})
 
 (defn- arguments
@@ -55,12 +55,11 @@
   "One tool message per tool call, one user message per text-based action."
   [results]
   (mapv (fn [{:keys [action output text]}]
-          (if-let [id (:tool-call-id action)]
-            {:role "tool"
-             :tool_call_id id
-             :content text
-             :extra {:outputs [output]}}
-            {:role "user"
-             :content text
-             :extra {:outputs [output]}}))
+          {:message (if-let [id (:tool-call-id action)]
+                      {:role "tool"
+                       :tool_call_id id
+                       :content text}
+                      {:role "user"
+                       :content text})
+           :outputs [output]})
         results))

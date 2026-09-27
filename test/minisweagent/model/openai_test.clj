@@ -14,7 +14,7 @@
                           :base-url "https://openrouter.ai/api/v1"
                           :params {:usage {:include true}}
                           :action-format :toolcall}
-                         [{:role "system" :content "Be helpful." :extra {:timestamp 1}}
+                         [{:role "system" :content "Be helpful."}
                           {:role "user" :content "Fix it."}]))))
 
 (deftest response-test
@@ -40,7 +40,7 @@
                                                          :finish_reason "length"}]}))))))
 
 (deftest observations-test
-  (is (= [{:role "tool" :tool_call_id "call_1" :content "{1}" :extra {:outputs [:o1]}}
-          {:role "tool" :tool_call_id "call_2" :content "{2}" :extra {:outputs [:o2]}}]
+  (is (= [{:message {:role "tool" :tool_call_id "call_1" :content "{1}"} :outputs [:o1]}
+          {:message {:role "tool" :tool_call_id "call_2" :content "{2}"} :outputs [:o2]}]
          (openai/observations [{:action {:command "a" :tool-call-id "call_1"} :output :o1 :text "{1}"}
                                {:action {:command "b" :tool-call-id "call_2"} :output :o2 :text "{2}"}]))))

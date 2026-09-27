@@ -3,6 +3,7 @@
   (:require [clojure.data.json :as json]
             [clojure.test :refer [deftest is]]
             [minisweagent.cli :as cli]
+            [minisweagent.log :as log]
             [minisweagent.model.http :as http]
             [minisweagent.trajectory :as trajectory]))
 
@@ -56,7 +57,7 @@
                                           :params {:max_tokens 16000}
                                           :action-format :toolcall}
                                          [{:role "system" :content "Be helpful."}
-                                          {:role "user" :content "Fix it." :extra {:timestamp 0}}]))))]
+                                          {:role "user" :content "Fix it."}]))))]
     (is (= "/v1/messages" (:path request)))
     (is (= "2023-06-01" (get-in request [:headers "anthropic-version"])))
     (is (= "server-side-fallback-2026-07-01" (get-in request [:headers "anthropic-beta"])))
@@ -103,6 +104,6 @@
              :tool_use_id "toolu_0"
              :content "{\"returncode\":0,\"output\":\"hello\\n\"}"}]
            (get-in (second requests) [:body :messages 2 :content])))
-    (is (= "Submitted" (get-in (peek (:messages @!final)) [:extra :exit-status])))
+    (is (= "Submitted" (:status (log/exit @!final))))
     (is (= @!final (trajectory/load-edn output))
-        "the saved trajectory is the final agent value")))
+        "the saved trajectory is the final log")))
