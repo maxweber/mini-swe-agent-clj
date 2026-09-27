@@ -130,3 +130,8 @@ Templates only fill `{{name}}` placeholders (`task`, `system`, `release`,
 ```bash
 clojure -M:test
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE). Prompts and design are ported from
+[mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent) (MIT).
